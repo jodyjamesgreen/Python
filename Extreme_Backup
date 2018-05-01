@@ -1,0 +1,69 @@
+# Create loop
+ip = ('1.1.1.')
+n = 255
+i = 0
+while i <= n:
+    
+    i = i + 1
+# import various modules
+    import paramiko
+    import sys
+    from pysnmp.hlapi import *
+    import time
+    from datetime import datetime
+
+
+    d = datetime.now().isoformat(timespec='minutes')  # create date string to be used on tftp upload
+    
+# print i so that you can see the script running
+    print (i)
+
+# setup all SNMP variables 
+    errorIndication, errorStatus, errorIndex, varBinds = next(
+        getCmd(SnmpEngine(),
+           CommunityData('public', mpModel=0),
+           UdpTransportTarget(((ip) + str (i), 161)), # using variable ip add i from the loop
+           ContextData(),
+           ObjectType(ObjectIdentity('1.3.6.1.2.1.1.5.0'))) # oid to get system name
+    )
+# error handling for SNMP
+    if errorIndication:
+        print(errorIndication)
+    elif errorStatus:
+        print('%s at %s' % (errorStatus.prettyPrint(),
+                        errorIndex and varBinds[int(errorIndex) - 1][0] or '?'))
+    else:
+        for varBind in varBinds:
+            
+# output from varBind        
+         g =(varBind)
+         
+# create a new variable t from the previous one above.  to remove alot of unneeded stuff from the output I used the below command to only show the actual switch name
+         t = (g[1])
+         
+# print t so that you can see the script running         
+    print (t) 
+
+# username and password for switches added here    
+    user = ("username")
+    password = ("password")
+    
+# start ssh config
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    
+# use a try loop in case of ssh errors    
+    try:   
+        ssh.connect (ip + str (i),username=user, password=password)
+        
+        stdin, stdout, sdterr = ssh.exec_command('save config ' + str(t)) #used to save config locally as standard cfg, note that this will also change the switch to boot this file at next boot
+        
+        stdin, stdout, sdterr = ssh.exec_command('save config as ' + str(t)) # used to save xml file locally
+        
+        stdin, stdout, sdterr = ssh.exec_command('upload config 1.1.1.2 ' + str(t) + str ('-')+ str (d)+ str('.cfg')+ str (' vr vr-default')) # used to copy to tftp server in cfg format and includes date
+        
+# error handling        
+    except (paramiko.ssh_exception.socket.timeout, paramiko.ssh_exception.AuthenticationException,TimeoutError) as e:
+  
+# print our any errors    
+            print (stdout.readlines())
